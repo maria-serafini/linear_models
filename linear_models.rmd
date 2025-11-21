@@ -126,3 +126,156 @@ nyc_airbnb |>
 ```
 
 
+## Hypothesis testing
+
+```{r}
+fit |> 
+  broom::tidy()
+```
+
+
+What about a categorical variable?
+
+```{r}
+fit_alt = lm(price ~ stars + borough + room_type, data = nyc_airbnb)
+fit_null = lm(price ~ stars + borough, data = nyc_airbnb)
+
+anova(fit_null, fit_alt) |> 
+  broom::tidy()
+```
+
+
+## Interactions vs nested data
+
+```{r}
+fit_interactions <-
+  lm(price ~ stars * borough + room_type * borough, data = nyc_airbnb) # allow effect of stars to differ from one borough to the next 
+
+fit_interactions |> 
+  broom::tidy()
+```
+
+
+Let's just look at Brooklyn first. 
+
+```{r}
+nyc_airbnb |> 
+  filter(borough == "Brooklyn") |> 
+  lm(price ~ stars + room_type, data = _) |> # b/c data is not first argument in lm(), have to tell pipe where to put df from last function into the next one
+  broom::tidy()
+
+nyc_airbnb |> 
+  filter(borough == "Manhattan") |> 
+  lm(price ~ stars + room_type, data = _) |> # b/c data is not first argument in lm(), have to tell pipe where to put df from last function into the next one
+  broom::tidy()
+
+nyc_airbnb |> 
+  filter(borough == "Bronx") |> 
+  lm(price ~ stars + room_type, data = _) |> # b/c data is not first argument in lm(), have to tell pipe where to put df from last function into the next one
+  broom::tidy()
+
+nyc_airbnb |> 
+  filter(borough == "Queens") |> 
+  lm(price ~ stars + room_type, data = _) |> # b/c data is not first argument in lm(), have to tell pipe where to put df from last function into the next one
+  broom::tidy()
+```
+
+
+Write a short function
+
+```{r}
+lm_airbnb = function(df){
+  
+  lm(price ~ stars + room_type, data = df)
+  
+}
+
+nyc_airbnb |> 
+  filter(borough == "Queens") |> 
+  lm_airbnb() |> 
+  broom::tidy()
+```
+
+
+Create a list of dataframs, and iterate to fit the model each time. 
+
+```{r}
+nested_lm_results <- 
+  nyc_airbnb |> 
+  nest(data = -borough) |> 
+  mutate(
+    fits = map(data, lm_airbnb), 
+    results = map(fits, broom::tidy)
+  ) |> 
+  select(borough, results) |> 
+  unnest(results)
+```
+
+
+Do some untidying.
+
+```{r}
+nested_lm_results |> 
+  select(borough, term, estimate) |> 
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+    )
+
+# look and see what's happening borough to borough
+```
+
+
+Use an *anonymous* function instead of `lm_airbnb`
+
+```{r}
+nested_lm_results <- 
+  nyc_airbnb |> 
+  nest(data = -borough) |> 
+  mutate(
+    fits = map(data, \(df) lm(price ~ stars + room_type, data = df)), 
+    results = map(fits, broom::tidy)
+  ) |> 
+  select(borough, results) |> 
+  unnest(results)
+
+nested_lm_results |> 
+  select(borough, term, estimate) |> 
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+    )
+```
+
+
+Let's do an even more extreme example!!
+
+```{r}
+manhattan_analysis <-
+  nyc_airbnb |> 
+  filter(
+    borough == "Manhattan"
+  ) |> 
+  nest(data = -neighbourhood) |> 
+  mutate(
+    fits = map(data, \(df) lm(price ~ stars + room_type, data = df)),
+    results = map(fits, broom::tidy)
+  ) |> 
+  select(neighbourhood, results) |> 
+  unnest(results)
+```
+
+
+Make a plot
+
+```{r}
+manhattan_analysis |> 
+  filter(term == "stars") |> 
+  mutate(
+    neighbourhood = fct_reorder(neighbourhood, estimate)
+  ) |> 
+  ggplot(aes(x = neighbourhood, y = estimate)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
