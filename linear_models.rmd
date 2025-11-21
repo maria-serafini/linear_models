@@ -1,10 +1,11 @@
 ---
-title: "linear_models"
+title: "Linear Models"
 output: github_document
 ---
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(p8105.datasets)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -22,3 +23,71 @@ options(
 scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 ```
+
+
+Load the NYC airbnd data
+```{r}
+data(nyc_airbnb)
+```
+
+Look at the data / do some cleaning. 
+
+```{r}
+nyc_airbnb <- 
+  nyc_airbnb |> 
+  mutate(
+    stars = review_scores_location / 2 
+  ) |> 
+  rename(
+    borough = neighbourhood_group
+  ) |> 
+  filter(borough != "Staten Island") |> 
+  select(price, stars, borough, room_type, neighbourhood)
+```
+
+
+Do regression!!!
+
+```{r}
+fit = lm(formula = price ~ stars + borough, data = nyc_airbnb)
+```
+
+
+Do some additional cleaning then refit. 
+
+```{r}
+nyc_airbnb <-  
+  nyc_airbnb |> 
+  mutate(
+    borough = fct_infreq(borough), 
+    room_type = fct_infreq(room_type)
+  ) # fct_infreq = puts categories in order of how frequently they appear in the dataset
+
+fit = lm(formula = price ~ stars + borough, data = nyc_airbnb)
+```
+
+
+Look at `lm` stuff (DO NOT USE)
+
+```{r, eval = FALSE}
+summary(fit)
+names(summary(fit))
+summary(fit)[["coefficients"]]
+names(summary(fit))
+summary(fit)[["df"]]
+
+fitted.values(fit)
+```
+
+
+Look at cleaner `lm` stuff
+```{r}
+fit |> 
+  broom::tidy() |> 
+  mutate(
+    term = str_replace(term, "borough", "Borough: ")
+  ) |> 
+  select(term, estimate, p.value) |> 
+  knitr::kable(digits = 3)
+```
+
